@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"log"
+	"k8s.io/klog/v2"
 	"reflect"
 	"strings"
 )
@@ -21,7 +21,7 @@ type Options struct {
 	File string `flag:"manifest"`
 
 	GitLabToken string `flag:"gitlab-token" yaml:"gitlabToken"`
-	GithubToken string `flag:"github-token" yaml:"githubToken"`
+	GitHubToken string `flag:"github-token" yaml:"githubToken"`
 	ArtToken    string `flag:"artifactory-token" yaml:"artToken"`
 }
 
@@ -34,7 +34,15 @@ func NewCmd() *cobra.Command {
 		Long:  long,
 
 		Run: func(cmd *cobra.Command, args []string) {
-			o.Run(cmd, args)
+			if err := o.Check(cmd, args); err != nil {
+				klog.Errorln(err)
+			}
+			if err := o.Validate(cmd, args); err != nil {
+				klog.Errorln(err)
+			}
+			if err := o.Run(cmd, args); err != nil {
+				klog.Errorln(err)
+			}
 		},
 	}
 
@@ -43,21 +51,21 @@ func NewCmd() *cobra.Command {
 	v.SetEnvPrefix("AM")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	cmd.PersistentFlags().StringVar(&o.File, "manifest", "./artifacts.yaml", "Path to the manifest containing artifacts to download")
-	cmd.PersistentFlags().StringVar(&o.GitLabToken, "gitlab-token", "", "The API token for authenticating with GitLab")
-	cmd.PersistentFlags().StringVar(&o.GithubToken, "github-token", "", "The API token for authenticating with Github")
-	cmd.PersistentFlags().StringVar(&o.ArtToken, "artifactory-token", "", "The API token for authenticating with Artifactory")
+	cmd.Flags().StringVar(&o.File, "manifest", "./artifacts.yaml", "Path to the manifest containing artifacts to download. Can be set from AM_MANIFEST.")
+	cmd.Flags().StringVar(&o.GitLabToken, "gitlab-token", "", "The API token for authenticating with GitLab. Can be set from AM_GITLAB_TOKEN.")
+	cmd.Flags().StringVar(&o.GitHubToken, "github-token", "", "The API token for authenticating with GitHub. Can be set from AM_GITHUB_TOKEN.")
+	cmd.Flags().StringVar(&o.ArtToken, "artifactory-token", "", "The API token for authenticating with Artifactory. Can be set from AM_ARTIFACTORY_TOKEN.")
 
-	if err := v.BindPFlags(cmd.PersistentFlags()); err != nil {
-		log.Fatalln(err)
+	if err := v.BindPFlags(cmd.Flags()); err != nil {
+		klog.Fatalln(err)
 	}
 
-	if err := registerFlags(v, "", cmd.PersistentFlags(), o); err != nil {
-		log.Fatalln(err)
+	if err := registerFlags(v, "", cmd.Flags(), o); err != nil {
+		klog.Fatalln(err)
 	}
 
 	if err := v.Unmarshal(o, decodeFromFlagTag); err != nil {
-		log.Fatalln(err)
+		klog.Fatalln(err)
 	}
 
 	return cmd
@@ -131,9 +139,18 @@ func isUnexported(name string) bool {
 	return first == strings.ToLower(first)
 }
 
-func (o *Options) Run(cmd *cobra.Command, args []string) {
+func (o *Options) Check(cmd *cobra.Command, args []string) error {
+	return nil
+}
+
+func (o *Options) Validate(cmd *cobra.Command, args []string) error {
+	return nil
+}
+
+func (o *Options) Run(cmd *cobra.Command, args []string) error {
 	if err := cmd.ParseFlags(args); err != nil {
-		log.Fatalln(err)
+		klog.Fatalln(err)
 	}
-	log.Println(o)
+	fmt.Println(o)
+	return nil
 }

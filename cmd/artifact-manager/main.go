@@ -2,12 +2,12 @@ package main
 
 import (
 	"github.com/ethanchowell/artifact-manager/pkg/cmd"
-	"log"
+	"k8s.io/klog/v2"
 )
 
 func main() {
 	rootCmd := cmd.New()
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalln(err)
+		klog.Fatalln(err)
 	}
 }

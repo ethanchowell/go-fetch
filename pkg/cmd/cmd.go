@@ -4,7 +4,7 @@ import (
 	"github.com/ethanchowell/artifact-manager/pkg/cmd/download"
 	"github.com/ethanchowell/artifact-manager/pkg/cmd/version"
 	"github.com/spf13/cobra"
-	"log"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -22,12 +22,10 @@ func New() *cobra.Command {
 		Run: runHelp,
 	}
 
-	//helpCmd := help.NewCmd()
 	downloadCmd := download.NewCmd()
 	versionCmd := version.NewCmd()
 
 	cmd.AddCommand(
-		//helpCmd,
 		downloadCmd,
 		versionCmd,
 	)
@@ -37,6 +35,6 @@ func New() *cobra.Command {
 
 func runHelp(cmd *cobra.Command, _ []string) {
 	if err := cmd.Help(); err != nil {
-		log.Fatalln(err)
+		klog.Fatalln(err)
 	}
 }
