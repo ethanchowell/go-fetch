@@ -1,6 +1,6 @@
 
 FROM scratch
 
-COPY ./build/artifact-manager /usr/local/bin/artifact-manager
+COPY ./build/go-fetch /usr/local/bin/go-fetch
 
-ENTRYPOINT ["artifact-manager"]
+ENTRYPOINT ["go-fetch"]

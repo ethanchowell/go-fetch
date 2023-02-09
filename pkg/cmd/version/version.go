@@ -14,7 +14,7 @@ func NewCmd() *cobra.Command {
 		Short: "Print the version of the application",
 
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("artifact-manager %s (built with %s)\n", VERSION, runtime.Version())
+			fmt.Printf("go-fetch %s (built with %s)\n", VERSION, runtime.Version())
 		},
 	}
 

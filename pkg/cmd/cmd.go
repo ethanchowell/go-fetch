@@ -1,21 +1,21 @@
 package cmd
 
 import (
-	"github.com/ethanchowell/artifact-manager/pkg/cmd/download"
-	"github.com/ethanchowell/artifact-manager/pkg/cmd/version"
+	"github.com/ethanchowell/go-fetch/pkg/cmd/download"
+	"github.com/ethanchowell/go-fetch/pkg/cmd/version"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 )
 
 const (
 	long = `
-Artifact Manager is a CLI tool to describe and fetch external artifacts through a yaml descriptor
+Go-Fetch is a CLI tool to describe and fetch external artifacts through a yaml descriptor
 `
 )
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "artifact-manager",
+		Use:   "go-fetch",
 		Short: "A tool for fetching external artifacts",
 		Long:  long,
 

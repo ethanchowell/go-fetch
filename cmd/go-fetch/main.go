@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ethanchowell/artifact-manager/pkg/cmd"
+	"github.com/ethanchowell/go-fetch/pkg/cmd"
 	"k8s.io/klog/v2"
 )
 

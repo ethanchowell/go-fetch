@@ -1,4 +1,4 @@
-module github.com/ethanchowell/artifact-manager
+module github.com/ethanchowell/go-fetch
 
 go 1.19
 

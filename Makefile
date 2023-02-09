@@ -3,7 +3,7 @@ VERSION ?= $(shell git describe --always --dirty --tags 2>/dev/null || echo "und
 # Allow to override image registry.
 DOCKER_REGISTRY ?= quay.io
 DOCKER_NAMESPACE ?= ethanchowell
-PROJECT_NAME ?= artifact-manager
+PROJECT_NAME ?= go-fetch
 
 IMAGE ?= $(DOCKER_REGISTRY)/$(DOCKER_NAMESPACE)/$(PROJECT_NAME):$(VERSION)
 
@@ -42,7 +42,7 @@ lint: ## Run golangci-lint
 
 .PHONY: build
 build: fmt vet lint ## Build the executable
-	@CGO_ENABLED=0 GOARCH=amd64 go build -buildvcs=false -ldflags="-w -s -X version.VERSION=${VERSION}" -o ./build/artifact-manager ./cmd/artifact-manager
+	@CGO_ENABLED=0 GOARCH=amd64 go build -buildvcs=false -ldflags="-w -s -X version.VERSION=${VERSION}" -o ./build/go-fetch ./cmd/go-fetch
 
 .PHONY: docker
 docker: build ## Build the docker image
