@@ -2,13 +2,21 @@ package download
 
 import (
 	"fmt"
+	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
+	"github.com/ethanchowell/go-fetch/pkg/provider"
+	"github.com/ethanchowell/go-fetch/pkg/util"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
+	"io"
 	"k8s.io/klog/v2"
+	"os"
+	"path"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 const (
@@ -140,6 +148,14 @@ func isUnexported(name string) bool {
 }
 
 func (o *Options) Check(cmd *cobra.Command, args []string) error {
+	_, err := os.Stat(o.File)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("file not found: %s", o.File)
+	}
+
+	if err != nil {
+		return fmt.Errorf("could not check file: %w", err)
+	}
 	return nil
 }
 
@@ -148,9 +164,97 @@ func (o *Options) Validate(cmd *cobra.Command, args []string) error {
 }
 
 func (o *Options) Run(cmd *cobra.Command, args []string) error {
-	if err := cmd.ParseFlags(args); err != nil {
-		klog.Fatalln(err)
+	data, err := os.ReadFile(o.File)
+	if err != nil {
+		return err
 	}
-	fmt.Println(o)
+
+	m := manifestv1alpha1.Manifest{}
+	err = yaml.Unmarshal(data, &m)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	for _, release := range m.Releases {
+		wg.Add(1)
+		go func(release manifestv1alpha1.Release) {
+			defer wg.Done()
+
+			p := provider.New(release.Repo)
+			downloadArtifacts(m.Target, p, release)
+		}(release)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+func downloadArtifacts(rootDir string, p provider.Provider, release manifestv1alpha1.Release) {
+	var wg sync.WaitGroup
+	for _, artifact := range release.Artifacts {
+		wg.Add(1)
+		go func(artifact manifestv1alpha1.Artifact) {
+			defer wg.Done()
+
+			fmt.Printf("downloading artifact: %s\n", artifact.Name)
+			data, err := p.Fetch(release.Tag, artifact)
+			if err != nil {
+				fmt.Printf("could not download artifact: %s\n", artifact.Name)
+				return
+			}
+
+			targetDir := path.Join(rootDir, release.Repo.Name, release.Tag)
+			err = saveArtifact(targetDir, artifact.Name, artifact.Checksum, data)
+			if err != nil {
+				fmt.Printf("could not save artifact to %s: %s\n", path.Join(targetDir, artifact.Name), err)
+			}
+		}(artifact)
+	}
+	wg.Wait()
+}
+
+func saveArtifact(targetDir, name, checksum string, data []byte) error {
+	filePath := path.Join(targetDir, name)
+	_, err := os.Stat(filePath)
+	if err := checkFile(filePath, checksum); err != nil {
+		return err
+	} else {
+		if err := os.MkdirAll(targetDir, 0700); err != nil {
+			return err
+		}
+	}
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.Write(data)
+	return err
+}
+
+func checkFile(filePath, checksum string) error {
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return err
+	}
+
+	_, err = util.ValidateChecksum(checksum, data)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

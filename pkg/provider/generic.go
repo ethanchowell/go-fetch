@@ -7,6 +7,6 @@ import (
 type Generic struct {
 }
 
-func (p *Generic) Fetch(release manifestv1alpha1.Release) ([]byte, error) {
+func (p Generic) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, error) {
 	return nil, nil
 }

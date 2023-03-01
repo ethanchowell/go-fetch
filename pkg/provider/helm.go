@@ -7,6 +7,6 @@ import (
 type Helm struct {
 }
 
-func (p *Helm) Fetch(release manifestv1alpha1.Release) ([]byte, error) {
+func (p Helm) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, error) {
 	return nil, nil
 }

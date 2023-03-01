@@ -41,7 +41,7 @@ lint: ## Run golangci-lint
 ##@ Building
 
 .PHONY: build
-build: fmt vet lint ## Build the executable
+build: fmt vet ## Build the executable
 	@CGO_ENABLED=0 GOARCH=amd64 go build -buildvcs=false -ldflags="-w -s -X version.VERSION=${VERSION}" -o ./build/go-fetch ./cmd/go-fetch
 
 .PHONY: docker
