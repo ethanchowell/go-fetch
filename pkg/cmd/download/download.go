@@ -56,7 +56,7 @@ func NewCmd() *cobra.Command {
 
 	v := viper.New()
 	v.AutomaticEnv()
-	v.SetEnvPrefix("AM")
+	v.SetEnvPrefix("GO_FETCH")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	cmd.Flags().StringVar(&o.File, "manifest", "./artifacts.yaml", "Path to the manifest containing artifacts to download. Can be set from AM_MANIFEST.")
