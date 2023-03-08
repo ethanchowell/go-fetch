@@ -196,6 +196,12 @@ func downloadArtifacts(rootDir string, p provider.Provider, release manifestv1al
 		wg.Add(1)
 		go func(artifact manifestv1alpha1.Artifact) {
 			defer wg.Done()
+			targetDir := path.Join(rootDir, release.Repo.Name, release.Tag)
+			err := checkFile(path.Join(targetDir, artifact.Name), artifact.Checksum)
+			if err != nil {
+				fmt.Printf("skipping download for %s: %s\n", path.Join(targetDir, artifact.Name), err)
+				return
+			}
 
 			fmt.Printf("downloading artifact: %s\n", artifact.Name)
 			data, err := p.Fetch(release.Tag, artifact)
@@ -204,7 +210,6 @@ func downloadArtifacts(rootDir string, p provider.Provider, release manifestv1al
 				return
 			}
 
-			targetDir := path.Join(rootDir, release.Repo.Name, release.Tag)
 			err = saveArtifact(targetDir, artifact.Name, artifact.Checksum, data)
 			if err != nil {
 				fmt.Printf("could not save artifact to %s: %s\n", path.Join(targetDir, artifact.Name), err)
@@ -251,9 +256,13 @@ func checkFile(filePath, checksum string) error {
 		return err
 	}
 
-	_, err = util.ValidateChecksum(checksum, data)
+	ok, err := util.ValidateChecksum(checksum, data)
 	if err != nil {
 		return err
+	}
+
+	if ok {
+		return fmt.Errorf("file already exists with valid checksum: %s", filePath)
 	}
 
 	return nil

@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+	docker "github.com/docker/docker/client"
 	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
 	"strings"
 )
@@ -14,7 +16,12 @@ func New(repo manifestv1alpha1.Repo) Provider {
 	case manifestv1alpha1.Artifactory:
 		return Artifactory{}
 	case manifestv1alpha1.Docker:
-		return Docker{}
+		c, _ := docker.NewClientWithOpts(docker.FromEnv)
+		c.NegotiateAPIVersion(context.Background())
+		return Docker{
+			repo:   repo.Name,
+			client: c,
+		}
 	case manifestv1alpha1.Generic:
 		return Generic{}
 	case manifestv1alpha1.GitHub:
