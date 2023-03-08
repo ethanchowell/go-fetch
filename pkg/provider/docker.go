@@ -41,7 +41,6 @@ func (p Docker) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, e
 
 	var buf bytes.Buffer
 	w := gzip.NewWriter(&buf)
-	defer w.Close()
 
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -56,5 +55,10 @@ func (p Docker) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, e
 		fmt.Println(err)
 		return nil, err
 	}
+	err = w.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	return buf.Bytes(), nil
 }
