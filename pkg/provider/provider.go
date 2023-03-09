@@ -33,7 +33,9 @@ func New(repo manifestv1alpha1.Repo) Provider {
 	case manifestv1alpha1.GitLab:
 		return GitLab{}
 	case manifestv1alpha1.Helm:
-		return Helm{}
+		return Helm{
+			repo: repo.Name,
+		}
 	default:
 		return Generic{}
 	}
