@@ -1,19 +1,23 @@
 package download
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
 	"github.com/ethanchowell/go-fetch/pkg/provider"
-	"github.com/ethanchowell/go-fetch/pkg/util"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 	"io"
+	"io/fs"
 	"k8s.io/klog/v2"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -27,6 +31,8 @@ Parse a given YAML manifest for artifacts that should be downloaded.
 
 type Options struct {
 	File string `flag:"manifest"`
+
+	Bundle bool `flag:"bundle"`
 
 	GitLabToken string `flag:"gitlab-token" yaml:"gitlabToken"`
 	GitHubToken string `flag:"github-token" yaml:"githubToken"`
@@ -59,10 +65,11 @@ func NewCmd() *cobra.Command {
 	v.SetEnvPrefix("GO_FETCH")
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	cmd.Flags().StringVar(&o.File, "manifest", "./artifacts.yaml", "Path to the manifest containing artifacts to download. Can be set from AM_MANIFEST.")
-	cmd.Flags().StringVar(&o.GitLabToken, "gitlab-token", "", "The API token for authenticating with GitLab. Can be set from AM_GITLAB_TOKEN.")
-	cmd.Flags().StringVar(&o.GitHubToken, "github-token", "", "The API token for authenticating with GitHub. Can be set from AM_GITHUB_TOKEN.")
-	cmd.Flags().StringVar(&o.ArtToken, "artifactory-token", "", "The API token for authenticating with Artifactory. Can be set from AM_ARTIFACTORY_TOKEN.")
+	cmd.Flags().StringVar(&o.File, "manifest", "./artifacts.yaml", "Path to the manifest containing artifacts to download. Can be set from GO_FETCH_MANIFEST.")
+	cmd.Flags().BoolVar(&o.Bundle, "bundle", false, "Flag to toggle if a tar.gz is generated with the same name as the --manifest flag.")
+	cmd.Flags().StringVar(&o.GitLabToken, "gitlab-token", "", "The API token for authenticating with GitLab. Can be set from GO_FETCH_GITLAB_TOKEN.")
+	cmd.Flags().StringVar(&o.GitHubToken, "github-token", "", "The API token for authenticating with GitHub. Can be set from GO_FETCH_GITHUB_TOKEN.")
+	cmd.Flags().StringVar(&o.ArtToken, "artifactory-token", "", "The API token for authenticating with Artifactory. Can be set from GO_FETCH_ARTIFACTORY_TOKEN.")
 
 	if err := v.BindPFlags(cmd.Flags()); err != nil {
 		klog.Fatalln(err)
@@ -175,95 +182,94 @@ func (o *Options) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	out, err := os.Create(path.Join(m.Target, "sha265sum.txt"))
+	if err != nil {
+		return fmt.Errorf("could not open checksum file for writing")
+	}
+
 	var wg sync.WaitGroup
 	for _, release := range m.Releases {
 		wg.Add(1)
 		go func(release manifestv1alpha1.Release) {
 			defer wg.Done()
 
-			p := provider.New(release.Repo)
-			downloadArtifacts(m.Target, p, release)
+			p := provider.New(release.Repo, provider.NewStore(m.Target, out))
+			downloadArtifacts(p, release)
 		}(release)
 	}
 
 	wg.Wait()
+
+	out.Close()
+	if o.Bundle || m.Package {
+		return bundleArtifacts(m.Target)
+	}
+
 	return nil
 }
 
-func downloadArtifacts(rootDir string, p provider.Provider, release manifestv1alpha1.Release) {
+func downloadArtifacts(p provider.Provider, release manifestv1alpha1.Release) {
 	var wg sync.WaitGroup
 	for _, artifact := range release.Artifacts {
 		wg.Add(1)
-		go func(artifact manifestv1alpha1.Artifact) {
+		go func(artifact string) {
 			defer wg.Done()
-			targetDir := path.Join(rootDir, release.Repo.Name, release.Tag)
-			err := checkFile(path.Join(targetDir, artifact.Name), artifact.Checksum)
-			if err != nil {
-				fmt.Printf("skipping download for %s: %s\n", path.Join(targetDir, artifact.Name), err)
-				return
-			}
 
-			fmt.Printf("downloading artifact: %s\n", artifact.Name)
-			data, err := p.Fetch(release.Tag, artifact)
-			if err != nil {
-				fmt.Printf("could not download artifact: %s\n", artifact.Name)
+			fmt.Printf("downloading artifact: %s\n", artifact)
+			if err := p.Fetch(release.Tag, artifact); err != nil {
+				fmt.Printf("could not download artifact %s: %v\n", artifact, err)
 				return
-			}
-
-			err = saveArtifact(targetDir, artifact.Name, artifact.Checksum, data)
-			if err != nil {
-				fmt.Printf("could not save artifact to %s: %s\n", path.Join(targetDir, artifact.Name), err)
 			}
 		}(artifact)
 	}
 	wg.Wait()
 }
 
-func saveArtifact(targetDir, name, checksum string, data []byte) error {
-	filePath := path.Join(targetDir, name)
-	_, err := os.Stat(filePath)
-	if err := checkFile(filePath, checksum); err != nil {
-		return err
-	} else {
-		if err := os.MkdirAll(targetDir, 0700); err != nil {
+func bundleArtifacts(filename string) error {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	err := filepath.Walk(filename, func(path string, info fs.FileInfo, err error) error {
+		// generate tar header
+		header, err := tar.FileInfoHeader(info, path)
+		if err != nil {
 			return err
 		}
-	}
 
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+		// must provide real name
+		// (see https://golang.org/src/archive/tar/common.go?#L626)
+		header.Name = filepath.ToSlash(path)
 
-	_, err = f.Write(data)
-	return err
-}
-
-func checkFile(filePath, checksum string) error {
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
+		// write header
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+		// if not a dir, write file content
+		if !info.IsDir() {
+			data, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(tw, data); err != nil {
+				return err
+			}
+		}
 		return nil
-	}
+	})
 
-	f, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 
-	data, err := io.ReadAll(f)
+	out, err := os.Create(fmt.Sprintf("%s.tar.gz", filename))
 	if err != nil {
 		return err
 	}
+	defer out.Close()
 
-	ok, err := util.ValidateChecksum(checksum, data)
-	if err != nil {
-		return err
-	}
-
-	if ok {
-		return fmt.Errorf("file already exists with valid checksum: %s", filePath)
-	}
-
-	return nil
+	_, err = out.Write(buf.Bytes())
+	return err
 }

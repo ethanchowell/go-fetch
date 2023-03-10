@@ -1,14 +1,14 @@
 package provider
 
 import (
-	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
 	"github.com/jfrog/jfrog-client-go/artifactory/auth"
 )
 
 type Artifactory struct {
+	Store
 }
 
-func (p Artifactory) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, error) {
+func (p Artifactory) Fetch(tag string, artifact string) error {
 	auth.NewArtifactoryDetails()
-	return nil, nil
+	return nil
 }

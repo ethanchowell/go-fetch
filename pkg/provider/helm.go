@@ -1,7 +1,9 @@
 package provider
 
 import (
-	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
+	"encoding/hex"
+	"fmt"
+	"github.com/minio/sha256-simd"
 	"helm.sh/helm/v3/pkg/action"
 	helm "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
@@ -9,6 +11,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 	"io"
 	"net/url"
+	"path"
 	"strings"
 
 	"log"
@@ -17,27 +20,52 @@ import (
 
 type Helm struct {
 	repo string
+
+	Store
 }
 
-func (p Helm) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, error) {
-	chartRef := artifact.Name
+func (p Helm) Fetch(tag string, artifact string) error {
+	chartRef := artifact
+
+	repoDir := p.repo
+	if isURL(p.repo) {
+		repoDir = "helm"
+	}
+
+	var saveFile string
+	targetDir := path.Join(p.rootDir, repoDir, tag)
+	if tag != "" {
+		saveFile = fmt.Sprintf("%s-%s.tgz", artifact, tag)
+	}
+	if tag == "" && strings.Count(artifact, ":") == 1 {
+		s := strings.Split(artifact, ":")
+		artifact = s[0]
+		saveFile = fmt.Sprintf("%s-%s.tgz", s[0], s[1])
+	}
+
+	log.Println(path.Join(targetDir, saveFile))
+	_, err := os.Stat(path.Join(targetDir, saveFile))
+	if !os.IsNotExist(err) && err == nil {
+		fmt.Printf("skipping download for %s\n", path.Join(targetDir, artifact))
+		return nil
+	}
+
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(targetDir, 0700); err != nil {
+			return err
+		}
+	}
+
 	settings := helm.New()
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), log.Printf); err != nil {
-		return nil, err
+		return err
 	}
 
 	pull := action.NewPullWithOpts(action.WithConfig(actionConfig))
 
 	pull.Version = tag
 	pull.Settings = settings
-	if isURL(p.repo) {
-		chartUrl, err := repo.FindChartInAuthAndTLSAndPassRepoURL(p.repo, pull.Username, pull.Password, chartRef, pull.Version, pull.CertFile, pull.KeyFile, pull.CaFile, pull.InsecureSkipTLSverify, pull.PassCredentialsAll, getter.All(pull.Settings))
-		if err != nil {
-			return nil, err
-		}
-		chartRef = chartUrl
-	}
 
 	var out strings.Builder
 
@@ -57,25 +85,40 @@ func (p Helm) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, err
 		RepositoryCache:  pull.Settings.RepositoryCache,
 	}
 
-	u, err := c.ResolveChartVersion(chartRef, pull.Version)
-	if err != nil {
-		return nil, err
+	if pull.RepoURL != "" {
+		chartUrl, err := repo.FindChartInAuthAndTLSAndPassRepoURL(pull.RepoURL, pull.Username, pull.Password, chartRef, pull.Version, pull.CertFile, pull.KeyFile, pull.CaFile, pull.InsecureSkipTLSverify, pull.PassCredentialsAll, getter.All(pull.Settings))
+		if err != nil {
+			return err
+		}
+		chartRef = chartUrl
+	} else {
+		chartRef = fmt.Sprintf("%s/%s", p.repo, artifact)
 	}
 
-	g, err := c.Getters.ByScheme(u.Scheme)
+	filePath, _, err := c.DownloadTo(chartRef, tag, targetDir)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	data, err := g.Get(u.String(), c.Options...)
+	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return err
 	}
 
-	return io.ReadAll(data)
+	hash := sha256.New()
+	hash.Write(data)
+	assetSum := hex.EncodeToString(hash.Sum(nil))
+	_, err = p.checksumData.Write([]byte(fmt.Sprintf("%s %s\n", assetSum, filePath)))
+	return err
 }
 
 func isURL(s string) bool {
 	_, err := url.Parse(s)
-	return err == nil
+	return err == nil && strings.Count(s, "/") != 0 && strings.Count(s, ":") != 0
 }

@@ -2,38 +2,57 @@ package provider
 
 import (
 	"context"
-	"errors"
+	"encoding/hex"
 	"fmt"
-	manifestv1alpha1 "github.com/ethanchowell/go-fetch/pkg/apis/manifest/v1alpa1"
-	"github.com/ethanchowell/go-fetch/pkg/util"
 	"github.com/google/go-github/v50/github"
+	"github.com/minio/sha256-simd"
 	"io"
 	"net/http"
+	"os"
+	"path"
 )
 
 type GitHub struct {
-	Group string
-	Repo  string
+	group string
+	repo  string
+
+	Store
 }
 
-func (p GitHub) Fetch(tag string, artifact manifestv1alpha1.Artifact) ([]byte, error) {
+func (p GitHub) Fetch(tag string, artifact string) error {
 	c := github.NewClient(nil)
-	fmt.Printf("fetching artifact: %s\n", artifact.Name)
+	fmt.Printf("fetching artifact: %s\n", artifact)
 
-	releaseService, _, err := c.Repositories.GetReleaseByTag(context.Background(), p.Group, p.Repo, tag)
+	targetDir := path.Join(p.rootDir, p.group, p.repo, tag)
+	if _, err := os.Stat(path.Join(targetDir, artifact)); !os.IsNotExist(err) && err == nil {
+		fmt.Printf("skipping download for %s\n", path.Join(targetDir, artifact))
+		return nil
+	}
+
+	releaseService, _, err := c.Repositories.GetReleaseByTag(context.Background(), p.group, p.repo, tag)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, asset := range releaseService.Assets {
-		if *asset.Name == artifact.Name {
-			return downloadAsset(c, p.Group, p.Repo, *asset.ID, artifact.Checksum)
+		if *asset.Name == artifact {
+			data, err := downloadAsset(c, p.group, p.repo, *asset.ID)
+			if err != nil {
+				return err
+			}
+
+			hash := sha256.New()
+			hash.Write(data)
+			assetSum := hex.EncodeToString(hash.Sum(nil))
+			p.checksumData.Write([]byte(fmt.Sprintf("%s %s\n", assetSum, path.Join(targetDir, artifact))))
+
+			return saveAsset(targetDir, artifact, data)
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func downloadAsset(client *github.Client, group, repo string, id int64, checksum string) ([]byte, error) {
+func downloadAsset(client *github.Client, group, repo string, id int64) ([]byte, error) {
 	rc, redirect, err := client.Repositories.DownloadReleaseAsset(context.Background(), group, repo, id, http.DefaultClient)
 	defer rc.Close()
 	if err != nil {
@@ -50,14 +69,21 @@ func downloadAsset(client *github.Client, group, repo string, id int64, checksum
 		return nil, err
 	}
 
-	ok, err := util.ValidateChecksum(checksum, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed validating checksum: %w", err)
-	}
-
-	if !ok {
-		return nil, errors.New("unable to validate checksum")
-	}
-
 	return data, err
+}
+
+func saveAsset(targetDir, name string, data []byte) error {
+	filePath := path.Join(targetDir, name)
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return err
+	}
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.Write(data)
+	return err
 }

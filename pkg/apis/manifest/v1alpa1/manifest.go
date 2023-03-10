@@ -22,18 +22,13 @@ var (
 	Generic Provider = "generic"
 )
 
-type Artifact struct {
-	Name     string `yaml:"name" json:"name"`
-	Checksum string `yaml:"checksum,omitempty" json:"checksum,omitempty"`
-}
-
 // Repo configures the provider to use for downloading and an auth token.
 type Repo struct {
 	// Name is the name of the repository.
 	Name string `yaml:"name" json:"name"`
 
 	// AuthToken is the access token needed by the provider. If left empty,
-	// the flag --<provider>-token and environment variable AM_<PROVIDER>_TOKEN
+	// the flag --<provider>-token and environment variable GO_FETCH_<PROVIDER>_TOKEN
 	// is checked, and used if not empty.
 	AuthToken string `yaml:"token,omitempty" json:"token,omitempty"`
 
@@ -44,11 +39,11 @@ type Repo struct {
 // Release is a tagged release in some remote repo that you want to fetch
 type Release struct {
 	// Tag is the release tag to download from a Repo.
-	Tag string `yaml:"tag" json:"tag"`
+	Tag string `yaml:"tag,omitempty" json:"tag,omitempty"`
 
 	// Artifacts outline the specific items to fetch from a release
 	// if left empty, the entire release will be downloaded.
-	Artifacts []Artifact `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
+	Artifacts []string `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
 
 	// Repo configures the provider to use for downloading and an auth token.
 	Repo Repo `yaml:"repo" json:"repo"`
