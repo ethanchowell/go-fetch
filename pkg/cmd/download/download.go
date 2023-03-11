@@ -182,6 +182,10 @@ func (o *Options) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := os.MkdirAll(m.Target, 0700); err != nil {
+		return fmt.Errorf("could not make target directory: %w", err)
+	}
+
 	out, err := os.Create(path.Join(m.Target, "sha265sum.txt"))
 	if err != nil {
 		return fmt.Errorf("could not open checksum file for writing")

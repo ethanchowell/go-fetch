@@ -2,10 +2,10 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"github.com/google/go-github/v50/github"
-	"github.com/minio/sha256-simd"
 	"io"
 	"net/http"
 	"os"

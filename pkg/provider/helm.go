@@ -1,9 +1,9 @@
 package provider
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/minio/sha256-simd"
 	"helm.sh/helm/v3/pkg/action"
 	helm "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
@@ -85,8 +85,8 @@ func (p Helm) Fetch(tag string, artifact string) error {
 		RepositoryCache:  pull.Settings.RepositoryCache,
 	}
 
-	if pull.RepoURL != "" {
-		chartUrl, err := repo.FindChartInAuthAndTLSAndPassRepoURL(pull.RepoURL, pull.Username, pull.Password, chartRef, pull.Version, pull.CertFile, pull.KeyFile, pull.CaFile, pull.InsecureSkipTLSverify, pull.PassCredentialsAll, getter.All(pull.Settings))
+	if isURL(p.repo) {
+		chartUrl, err := repo.FindChartInAuthAndTLSAndPassRepoURL(p.repo, pull.Username, pull.Password, chartRef, pull.Version, pull.CertFile, pull.KeyFile, pull.CaFile, pull.InsecureSkipTLSverify, pull.PassCredentialsAll, getter.All(pull.Settings))
 		if err != nil {
 			return err
 		}

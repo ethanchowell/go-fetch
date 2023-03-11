@@ -51,7 +51,7 @@ type Release struct {
 
 // Manifest is a descriptor of artifacts and where to download them
 type Manifest struct {
-	// Target defines the directory that artifacts will be downlaoded
+	// Target defines the directory that artifacts will be downloaded
 	Target string `yaml:"target" json:"target"`
 
 	// Releases define the releases to be downloaded by this manifest
