@@ -186,7 +186,7 @@ func (o *Options) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not make target directory: %w", err)
 	}
 
-	out, err := os.Create(path.Join(m.Target, "sha265sum.txt"))
+	out, err := os.OpenFile(path.Join(m.Target, "sha265sum.txt"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("could not open checksum file for writing")
 	}
