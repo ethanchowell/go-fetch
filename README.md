@@ -6,7 +6,7 @@ I often find myself having to package up a lot of third-party and internal softw
 ## Installation
 
 ```shell
-go install github.com/ethanchowell/go-fetch/cmd/go-fectch@latest
+go install github.com/ethanchowell/go-fetch/cmd/go-fetch@latest
 ```
 
 ## Quick Start

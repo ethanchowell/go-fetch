@@ -43,7 +43,6 @@ func (p Helm) Fetch(tag string, artifact string) error {
 		saveFile = fmt.Sprintf("%s-%s.tgz", s[0], s[1])
 	}
 
-	log.Println(path.Join(targetDir, saveFile))
 	_, err := os.Stat(path.Join(targetDir, saveFile))
 	if !os.IsNotExist(err) && err == nil {
 		fmt.Printf("skipping download for %s\n", path.Join(targetDir, artifact))
