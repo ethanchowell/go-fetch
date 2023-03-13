@@ -47,7 +47,10 @@ func (p Docker) Fetch(tag string, artifact string) error {
 	}
 
 	defer responsePull.Close()
-	io.Copy(os.Stdout, responsePull)
+	_, err = io.ReadAll(responsePull)
+	if err != nil {
+		return err
+	}
 
 	r, err := p.client.ImageSave(context.Background(), []string{imageTag})
 	if err != nil {
